@@ -13,8 +13,10 @@ font-thicken = true
 theme = "Catppuccin Mocha"
 
 # ── Window ────────────────────────────────────────────────────
-background-opacity = 0.97
-background-blur-radius = 20
+# See-through, but blurred so text stays readable ("frosted glass").
+# opacity 1.0 = solid, lower = more transparent. blur softens whatever's behind.
+background-opacity = 0.85
+background-blur-radius = 30
 window-padding-x = 10
 window-padding-y = 8
 window-save-state = always
