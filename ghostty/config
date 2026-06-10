@@ -3,7 +3,7 @@
 # Reload after edits: Cmd+Shift+, (or quit + reopen)
 
 # ── Font ──────────────────────────────────────────────────────
-font-family = "JetBrainsMono Nerd Font"
+font-family = "JetBrainsMono Nerd Font Mono"
 font-size = 14
 font-thicken = true
 
