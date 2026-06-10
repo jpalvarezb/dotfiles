@@ -71,6 +71,6 @@ style = "bold dimmed white"
 format = "[ $duration]($style) "
 
 [character]
-success_symbol = "[❯](bold green)"
-error_symbol = "[❯](bold red)"
-vicmd_symbol = "[❮](bold green)"
+success_symbol = "[›](green)"
+error_symbol = "[›](red)"
+vicmd_symbol = "[‹](green)"
