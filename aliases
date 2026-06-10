@@ -24,3 +24,7 @@ ccgrid() {
   tmux select-pane -t 0
   tmux attach -t "$session"
 }
+
+# Claude Squad — manage parallel Claude Code agents, each in its own git worktree.
+# Run `cs` inside a git repo. Config: ~/.claude-squad/config.json
+alias cs="claude-squad"
