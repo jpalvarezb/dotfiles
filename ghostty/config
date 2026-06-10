@@ -1,0 +1,41 @@
+# Ghostty config — managed in ~/code/jpalvarezb/dotfiles (symlinked to ~/.config/ghostty/config)
+# Docs: https://ghostty.org/docs/config
+# Reload after edits: Cmd+Shift+, (or quit + reopen)
+
+# ── Font ──────────────────────────────────────────────────────
+font-family = "MesloLGL Nerd Font"
+font-size = 14
+font-thicken = true
+
+# ── Theme ─────────────────────────────────────────────────────
+# Swap freely: Catppuccin Macchiato, Gruvbox Material, Nord, Ayu Mirage, etc.
+# See all: `open /Applications/Ghostty.app/Contents/Resources/ghostty/themes`
+theme = "Catppuccin Mocha"
+
+# ── Window ────────────────────────────────────────────────────
+background-opacity = 0.97
+background-blur-radius = 20
+window-padding-x = 10
+window-padding-y = 8
+window-save-state = always
+macos-titlebar-style = tabs
+
+# ── Cursor ────────────────────────────────────────────────────
+cursor-style = bar
+cursor-style-blink = true
+
+# ── Behavior ──────────────────────────────────────────────────
+macos-option-as-alt = true
+copy-on-select = true
+mouse-hide-while-typing = true
+
+# ── Splits (for running multiple Claude Code sessions side by side) ──
+keybind = cmd+d=new_split:right
+keybind = cmd+shift+d=new_split:down
+keybind = cmd+left_bracket=goto_split:previous
+keybind = cmd+right_bracket=goto_split:next
+keybind = cmd+alt+left=goto_split:left
+keybind = cmd+alt+right=goto_split:right
+keybind = cmd+alt+up=goto_split:up
+keybind = cmd+alt+down=goto_split:down
+keybind = cmd+shift+enter=toggle_split_zoom

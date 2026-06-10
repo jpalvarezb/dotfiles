@@ -7,3 +7,20 @@ alias serve='ruby -run -e httpd . -p 8000' # Or python -m SimpleHTTPServer :)
 
 # NOTE: On Q3 2021, Le Wagon decided to change the Web Dev curriculum default text editor
 alias stt="echo 'Launching VS Code instead of Sublime Text... (cf ~/.aliases)' && code ."
+
+# Launch a tmux session split into 4 tiled panes — one per parallel Claude Code run.
+# Usage:  cd <project> && ccgrid   (detach with Ctrl-b d, reattach with `tmux attach -t claude`)
+ccgrid() {
+  local session="claude"
+  if tmux has-session -t "$session" 2>/dev/null; then
+    tmux attach -t "$session"; return
+  fi
+  tmux new-session -d -s "$session" -c "$PWD"
+  tmux split-window -h -c "$PWD"
+  tmux split-window -v -c "$PWD"
+  tmux select-pane -t 0
+  tmux split-window -v -c "$PWD"
+  tmux select-layout tiled
+  tmux select-pane -t 0
+  tmux attach -t "$session"
+}

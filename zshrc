@@ -4,10 +4,16 @@ ZSH=$HOME/.oh-my-zsh
 ZSH_THEME="robbyrussell"
 
 # Useful oh-my-zsh plugins for Le Wagon bootcamps
-plugins=(git gitfast last-working-dir common-aliases zsh-syntax-highlighting history-substring-search)
+plugins=(git gitfast last-working-dir common-aliases zsh-syntax-highlighting history-substring-search direnv)
 
 # (macOS-only) Prevent Homebrew from reporting - https://github.com/Homebrew/brew/blob/master/docs/Analytics.md
 export HOMEBREW_NO_ANALYTICS=1
+
+#Google Cloud Plataform Authentication Key Reference
+export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gcp/credentials.json"
+
+# Claude Code uses /login + Claude Pro (no API keys stored here).
+
 
 # Disable warning about insecure completion-dependent directories
 ZSH_DISABLE_COMPFIX=true
@@ -23,7 +29,7 @@ type -a rbenv > /dev/null && eval "$(rbenv init -)"
 
 # Load pyenv (to manage your Python versions)
 export PYENV_VIRTUALENV_DISABLE_PROMPT=1
-type -a pyenv > /dev/null && eval "$(pyenv init -)" && eval "$(pyenv virtualenv-init - 2> /dev/null)" && RPROMPT+='[🐍 $(pyenv version-name)]'
+type -a pyenv > /dev/null && eval "$(pyenv init -)" && eval "$(pyenv virtualenv-init - 2> /dev/null)"
 
 # Load nvm (to manage your node versions)
 export NVM_DIR="$HOME/.nvm"
@@ -70,3 +76,29 @@ export EDITOR=code
 
 # Set ipdb as the default Python debugger
 export PYTHONBREAKPOINT=ipdb.set_trace
+
+# The next line updates PATH for the Google Cloud SDK.
+if [ -f '/opt/homebrew/share/google-cloud-sdk/path.zsh.inc' ]; then . '/opt/homebrew/share/google-cloud-sdk/path.zsh.inc'; fi
+
+# The next line enables shell command completion for gcloud.
+if [ -f '/opt/homebrew/share/google-cloud-sdk/completion.zsh.inc' ]; then . '/opt/homebrew/share/google-cloud-sdk/completion.zsh.inc'; fi
+
+# OList Path for Data Science Project Setup
+export PYTHONPATH="/Users/jpalvarez/code/jpalvarezb/04-Decision-Science/01-Project-Setup/data-context-and-setup:$PYTHONPATH"
+alias warp="warp > /dev/null 2>&1 &"
+
+. "$HOME/.local/bin/env"
+export OLLAMA_ORIGINS="*"
+
+# pnpm
+export PNPM_HOME="/Users/jpalvarez/Library/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
+
+# Starship prompt — modern, context-aware prompt.
+# Replaces the oh-my-zsh robbyrussell theme + Le Wagon snake RPROMPT.
+# Config lives at ~/.config/starship.toml
+eval "$(starship init zsh)"
