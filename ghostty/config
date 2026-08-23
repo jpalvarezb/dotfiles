@@ -1,4 +1,4 @@
-# Ghostty config — managed in ~/code/jpalvarezb/dotfiles (symlinked to ~/.config/ghostty/config)
+# Ghostty config — managed in ~/.dotfiles (symlinked to ~/.config/ghostty/config)
 # Docs: https://ghostty.org/docs/config
 # Reload after edits: Cmd+Shift+, (or quit + reopen)
 
