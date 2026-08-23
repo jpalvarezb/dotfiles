@@ -2,7 +2,8 @@
     "[python]": {
         "editor.bracketPairColorization.enabled": false,
         "editor.guides.bracketPairs": false,
-        "editor.tabSize": 4
+        "editor.tabSize": 4,
+        "diffEditor.ignoreTrimWhitespace": false
     },
     "editor.bracketPairColorization.enabled": true,
     "editor.detectIndentation": false,
@@ -15,12 +16,16 @@
         80,
         120
     ],
+    "jupyter.runStartupCommands": [
+        "%load_ext autoreload",
+        "%autoreload 2" ],
     "editor.showFoldingControls": "always",
     "editor.snippetSuggestions": "top",
     "editor.tabSize": 2,
     "emmet.includeLanguages": {
         "erb": "html"
     },
+
     "emmet.showSuggestionsAsSnippets": true,
     "emmet.triggerExpansionOnTab": true,
     "explorer.confirmDelete": false,
@@ -56,11 +61,10 @@
         "**/tmp/**": true,
         "**/vendor/**": true
     },
-    "git.enabled": false,
     "notebook.diff.ignoreMetadata": true,
     "notebook.lineNumbers": "on",
     "notebook.markup.fontSize": 13,
-    "python.defaultInterpreterPath": "~/.pyenv/shims/python",
+    "python.defaultInterpreterPath": "/Users/jpalvarez/.local/share/uv/python/cpython-3.14.0-macos-aarch64-none/bin/python3.14",
     "python.formatting.provider": "yapf",
     "python.languageServer": "Pylance",
     "python.linting.enabled": false,
@@ -77,11 +81,60 @@
     "telemetry.telemetryLevel": "off",
     "window.restoreWindows": "none",
     "window.newWindowDimensions": "maximized",
-    "workbench.editor.enablePreview": true,
     "workbench.iconTheme": "vscode-great-icons",
     "workbench.settings.editor": "json",
     "workbench.settings.openDefaultSettings": true,
     "workbench.settings.useSplitJSON": true,
     "workbench.startupEditor": "newUntitledFile",
     "workbench.panel.defaultLocation": "right",
+    "makefile.configureOnOpen": true,
+    "security.workspace.trust.untrustedFiles": "open",
+    "files.autoSave": "onFocusChange",
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "workbench.panel.defaultLocation": "bottom",
+    "terminal.integrated.profiles.osx": {
+    "zsh": {
+        "path": "/bin/zsh"
+    },
+    "bash": {
+        "path": "/bin/bash"
+    }
+    },
+    "terminal.integrated.defaultProfile.osx": "zsh",
+    "terminal.external.osxExec": "/Applications/Warp.app",
+    "notebook.defaultFormatter": "charliermarsh.ruff",
+    "notebook.formatOnCellExecution": true,
+    "notebook.formatOnSave.enabled": true,
+    "python.createEnvironment.trigger": "off",
+    "notebook.cellToolbarLocation": {
+      "default": "right",
+      "jupyter-notebook": "right"
+    },
+    "diffEditor.maxComputationTime": 0,
+    "workbench.editor.empty.hint": "hidden",
+    "python.analysis.extraPaths": [],
+    "docker.extension.enableComposeLanguageServer": false,
+    "kilo-code.allowedCommands": [
+      "git log",
+      "git diff",
+      "git show"
+    ],
+    "kilo-code.deniedCommands": [],
+    "[dockercompose]": {
+      "editor.insertSpaces": true,
+      "editor.tabSize": 2,
+      "editor.autoIndent": "advanced",
+      "editor.quickSuggestions": {
+        "other": true,
+        "comments": false,
+        "strings": true
+      },
+      "editor.defaultFormatter": "redhat.vscode-yaml"
+    },
+    "[github-actions-workflow]": {
+      "editor.defaultFormatter": "redhat.vscode-yaml"
+    },
+    "chat.viewSessions.orientation": "stacked",
+    "workbench.colorTheme": "Dark Modern"
 }

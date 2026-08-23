@@ -10,7 +10,15 @@ font-thicken = true
 # ── Theme ─────────────────────────────────────────────────────
 # Swap freely: Catppuccin Macchiato, Gruvbox Material, Nord, Ayu Mirage, etc.
 # See all: `open /Applications/Ghostty.app/Contents/Resources/ghostty/themes`
-theme = "Catppuccin Mocha"
+theme = "Brogrammer"
+
+# ── App icon (monochrome / black & white) ─────────────────────
+# custom-style lets us recolor the ghost + screen; chrome frame = neutral silver.
+# White ghost on a black screen = sleek B&W. Flip the two colors for the inverse.
+macos-icon = custom-style
+macos-icon-frame = plastic
+macos-icon-ghost-color = white
+macos-icon-screen-color = black
 
 # ── Window ────────────────────────────────────────────────────
 # See-through, but blurred so text stays readable ("frosted glass").

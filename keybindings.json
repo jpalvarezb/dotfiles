@@ -9,5 +9,15 @@
     "key": "cmd+shift+v",
     "command": "pasteAndIndent.action",
     "when": "editorTextFocus && !editorReadonly"
+  },
+  {
+    "key": "cmd+k cmd+/",
+    "command": "editor.action.removeCommentLine",
+    "when": "editorTextFocus && !editorReadonly"
+  },
+  {
+    "key": "cmd+k cmd+u",
+    "command": "-editor.action.removeCommentLine",
+    "when": "editorTextFocus && !editorReadonly"
   }
 ]
