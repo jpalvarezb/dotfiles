@@ -10,8 +10,8 @@
   remote = yellow
 
 [core]
-  pager = less -FRSX
-  editor = code --wait
+  pager = delta
+  editor = cursor --wait
 	excludesfile = /Users/jpalvarez/.gitignore_global
 
 [alias]
@@ -69,3 +69,10 @@
 [credential "https://gist.github.com"]
 	helper = 
 	helper = !/opt/homebrew/bin/gh auth git-credential
+[interactive]
+	diffFilter = delta --color-only
+[delta]
+	navigate = true
+	line-numbers = true
+[merge]
+	conflictstyle = zdiff3
