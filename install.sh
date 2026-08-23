@@ -21,9 +21,9 @@ symlink() {
   fi
 }
 
-# For all files `$name` in the present folder except `*.sh`, `README.md`, `settings.json`,
-# and `config`, backup the target file located at `~/.$name` and symlink `$name` to `~/.$name`
-for name in aliases gitconfig irbrc pryrc rspec zprofile zshrc; do
+# Symlink the shell config files to ~/.$name (backing up any real file first).
+
+for name in aliases gitconfig zprofile zshrc; do
   if [ ! -d "$name" ]; then
     target="$HOME/.$name"
     backup $target

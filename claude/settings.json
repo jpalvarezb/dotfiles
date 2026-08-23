@@ -3,30 +3,6 @@
     "defaultMode": "auto"
   },
   "model": "opus",
-  "skillOverrides": {
-    "agents-sdk": "off",
-    "brandkit": "off",
-    "cloudflare": "off",
-    "cloudflare-email-service": "off",
-    "cloudflare-one": "off",
-    "cloudflare-one-migrations": "off",
-    "design-taste-frontend": "off",
-    "design-taste-frontend-v1": "off",
-    "durable-objects": "off",
-    "full-output-enforcement": "off",
-    "high-end-visual-design": "off",
-    "image-to-code": "off",
-    "imagegen-frontend-mobile": "off",
-    "imagegen-frontend-web": "off",
-    "industrial-brutalist-ui": "off",
-    "minimalist-ui": "off",
-    "sandbox-sdk": "off",
-    "stitch-design-taste": "off",
-    "turnstile-spin": "off",
-    "web-perf": "off",
-    "workers-best-practices": "off",
-    "wrangler": "off"
-  },
   "hooks": {
     "Stop": [
       {
