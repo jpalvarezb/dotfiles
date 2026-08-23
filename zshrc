@@ -26,19 +26,10 @@ export PYTHONBREAKPOINT=ipdb.set_trace  # needs ipdb in the project's .venv
 # Claude Code uses /login + Claude Pro (no API keys stored here).
 
 # ─────────────────────────────────────────────────────────────
-#  Python — uv is the standard: per-project .venv + uv.lock.
-#
-#  pyenv is still initialized ONLY because six legacy .venv symlink
-#  their interpreter into ~/.pyenv/versions/3.12.3 (agents, agropeq.io,
-#  data-science-mcp, CSSA/cafe-gpt, jp-audit, meetings). Once those are
-#  rebuilt with `uv venv --clear`, delete this block and ~/.pyenv.
+#  Python — uv only. uv downloads and manages its own interpreters
+#  (~/.local/share/uv/python), so there is no version manager to init
+#  here. pyenv was removed once every project .venv was rebuilt on it.
 # ─────────────────────────────────────────────────────────────
-export PYENV_VIRTUALENV_DISABLE_PROMPT=1
-if command -v pyenv > /dev/null; then
-  eval "$(pyenv init -)"
-  eval "$(pyenv virtualenv-init - 2> /dev/null)"
-fi
-
 # uv, uvx, poetry and other user-local binaries
 . "$HOME/.local/bin/env"
 
