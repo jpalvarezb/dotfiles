@@ -69,6 +69,23 @@ if [[ `uname` =~ "Darwin" ]]; then
   ssh-add --apple-use-keychain ~/.ssh/id_ed25519
 fi
 
+# Symlink the modern terminal config: Starship prompt, Ghostty, tmux.
+# These used to be created by hand — install.sh now reproduces them.
+mkdir -p ~/.config ~/.config/ghostty
+backup ~/.config/starship.toml   && symlink $PWD/starship.toml   ~/.config/starship.toml
+backup ~/.config/ghostty/config  && symlink $PWD/ghostty/config  ~/.config/ghostty/config
+backup ~/.tmux.conf              && symlink $PWD/tmux.conf       ~/.tmux.conf
+
+# Symlink Claude Code config. Claude may rewrite ~/.claude/settings.json when
+# you change a setting via /config; if that ever replaces the symlink with a
+# real file, re-running this script restores it (the old file is kept as .backup).
+mkdir -p ~/.claude
+for name in settings.json CLAUDE.md statusline-command.sh; do
+  target="$HOME/.claude/$name"
+  backup $target
+  symlink $PWD/claude/$name $target
+done
+
 # Refresh the current terminal with the newly installed configuration
 exec zsh
 
