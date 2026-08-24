@@ -55,22 +55,15 @@ keybind = cmd+shift+enter=toggle_split_zoom
 # Estos atajos mandan el prefijo de tmux en su lugar: Cmd+T = window nueva,
 # Cmd+1..9 = saltar directo. Fuera de tmux solo mandan un Ctrl-b inofensivo.
 keybind = cmd+t=text:\x02c
-keybind = cmd+one=text:\x021
-keybind = cmd+two=text:\x022
-keybind = cmd+three=text:\x023
-keybind = cmd+four=text:\x024
-keybind = cmd+five=text:\x025
-keybind = cmd+six=text:\x026
-keybind = cmd+seven=text:\x027
-keybind = cmd+eight=text:\x028
-keybind = cmd+nine=text:\x029
-# Physical digit keys also carry default goto_tab bindings; override those too.
-keybind = cmd+digit_1=text:\x021
-keybind = cmd+digit_2=text:\x022
-keybind = cmd+digit_3=text:\x023
-keybind = cmd+digit_4=text:\x024
-keybind = cmd+digit_5=text:\x025
-keybind = cmd+digit_6=text:\x026
-keybind = cmd+digit_7=text:\x027
-keybind = cmd+digit_8=text:\x028
-keybind = cmd+digit_9=text:\x029
+# Los defaults cmd+N (goto_tab) se interceptan antes que un override text:
+# (ghostty-org/ghostty#8756). El fix probado: accion csi sobre la tecla fisica;
+# tmux traduce la secuencia a select-window via user-keys (ver tmux.conf).
+keybind = command+digit_1=csi:49;9u
+keybind = command+digit_2=csi:50;9u
+keybind = command+digit_3=csi:51;9u
+keybind = command+digit_4=csi:52;9u
+keybind = command+digit_5=csi:53;9u
+keybind = command+digit_6=csi:54;9u
+keybind = command+digit_7=csi:55;9u
+keybind = command+digit_8=csi:56;9u
+keybind = command+digit_9=csi:57;9u
