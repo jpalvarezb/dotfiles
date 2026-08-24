@@ -2,29 +2,7 @@
   "permissions": {
     "defaultMode": "auto"
   },
-  "model": "opus",
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "osascript -e 'display notification \"Claude Code is waiting for your input\" with title \"Claude Code\" sound name \"Glass\"'"
-          }
-        ]
-      }
-    ],
-    "Elicitation": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "osascript -e 'display notification \"Claude Code needs your input\" with title \"Claude Code\" sound name \"Glass\"'"
-          }
-        ]
-      }
-    ]
-  },
+  "model": "fable",
   "statusLine": {
     "type": "command",
     "command": "bash /Users/jpalvarez/.claude/statusline-command.sh"
@@ -50,7 +28,7 @@
   },
   "skipWorkflowUsageWarning": true,
   "theme": "dark",
-  "preferredNotifChannel": "ghostty",
+  "preferredNotifChannel": "notification",
   "remoteControlAtStartup": false,
   "agentPushNotifEnabled": true,
   "voiceEnabled": true
