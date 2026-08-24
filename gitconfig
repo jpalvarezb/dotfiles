@@ -11,7 +11,7 @@
 
 [core]
   pager = delta
-  editor = cursor --wait
+  editor = code --wait
 	excludesfile = /Users/jpalvarez/.gitignore_global
 
 [alias]

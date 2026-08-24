@@ -26,8 +26,8 @@ zstyle ':completion:*' menu select
 # ─────────────────────────────────────────────────────────────
 export LANG=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
-export EDITOR=cursor
-export BUNDLER_EDITOR=cursor
+export EDITOR="code --wait"
+export BUNDLER_EDITOR="code --wait"
 export HOMEBREW_NO_ANALYTICS=1
 export GOOGLE_APPLICATION_CREDENTIALS="$HOME/.gcp/credentials.json"
 export OLLAMA_ORIGINS="*"
