@@ -169,9 +169,9 @@ function step(){
       a.vx-=dx*f;a.vy-=dy*f;b.vx+=dx*f;b.vy+=dy*f}}
   for(const[i,j]of E){const a=N[i],b=N[j];
     const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    const f=(d-60)*.004;a.vx+=dx/d*f*d;a.vy+=dy/d*f*d;b.vx-=dx/d*f*d;b.vy-=dy/d*f*d}
+    const f=(d-70)*.02/d;a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f}
   for(const n of N){n.vx+=(W/2-n.x)*.0012;n.vy+=(H/2-n.y)*.0012;
-    n.vx*=.85;n.vy*=.85;n.x+=n.vx;n.y+=n.vy;
+    n.vx=Math.max(-40,Math.min(40,n.vx*.85));n.vy=Math.max(-40,Math.min(40,n.vy*.85));n.x+=n.vx;n.y+=n.vy;
     if(n.fx!=null){n.x=n.fx;n.y=n.fy}}
 }
 function draw(){cx.clearRect(0,0,W,H);
