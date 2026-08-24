@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Runs `doctor` on a schedule and only bothers you when something is wrong.
+# Wired up by launchd via com.jpalvarez.setup-doctor.plist.
+log="$HOME/.cache/setup-doctor.log"
+mkdir -p "$(dirname "$log")"
+{ date '+%Y-%m-%d %H:%M'; "$HOME/.dotfiles/bin/doctor"; } > "$log" 2>&1
+n=$?
+if [ "$n" -gt 0 ]; then
+  osascript -e "display notification \"$n finding(s) — run: doctor\" with title \"Setup doctor\" sound name \"Glass\""
+fi

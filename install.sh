@@ -87,6 +87,15 @@ for name in settings.json CLAUDE.md statusline-command.sh; do
   symlink $PWD/claude/$name $target
 done
 
+# Install the weekly setup health check. `doctor` audits the things that have
+# silently rotted before: caches growing without bound, a .venv drifting off uv,
+# a removed version manager creeping back, .env files getting committed.
+mkdir -p ~/Library/LaunchAgents
+cp -f "$PWD/launchd/com.jpalvarez.setup-doctor.plist" ~/Library/LaunchAgents/
+launchctl unload ~/Library/LaunchAgents/com.jpalvarez.setup-doctor.plist 2> /dev/null
+launchctl load ~/Library/LaunchAgents/com.jpalvarez.setup-doctor.plist
+echo "-----> Weekly setup doctor installed (Mondays 10:00). Run it anytime with: doctor"
+
 # Refresh the current terminal with the newly installed configuration
 exec zsh
 

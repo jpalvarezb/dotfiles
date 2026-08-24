@@ -78,6 +78,8 @@ brew "wget"
 brew "yazi"
 # Shell extension to navigate your filesystem faster
 brew "zoxide"
+# Fish-like fast/unobtrusive autosuggestions for zsh
+brew "zsh-autosuggestions"
 # Zsh port of Fish shell's history search
 brew "zsh-history-substring-search"
 # Fish shell like syntax highlighting for zsh

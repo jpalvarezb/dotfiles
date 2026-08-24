@@ -60,6 +60,7 @@ path=("$PNPM_HOME" $path)
 #  `./bin` and `./node_modules/.bin` are deliberately absent: relative
 #  entries execute binaries out of whatever directory you stand in.
 # ─────────────────────────────────────────────────────────────
+path=("$HOME/.dotfiles/bin" $path)   # `doctor` and other personal scripts
 path+=(/usr/local/sbin)
 typeset -U path PATH
 

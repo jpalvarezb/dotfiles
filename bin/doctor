@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Health check for this machine's dev setup.
+#
+# Exists because pyenv silently grew back into a 235-package, 1.5G junk
+# drawer and it took a manual archaeology session to notice. Everything
+# checked here is something that actually went wrong once.
+#
+# Prints only problems. Silent output means healthy, which makes it safe
+# to run from cron. Exit code is the number of findings.
+
+set -uo pipefail
+
+# launchd starts this with a bare PATH, so brew, git and uv would be missing
+# and their checks would skip in silence — reporting "all clear" for tests
+# that never ran. Pin the paths the checks need.
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$HOME/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+# A check whose tool is missing must be loud, not silent.
+for _need in brew git; do
+  command -v "$_need" > /dev/null || echo "  ? $_need not found — its checks were skipped"
+done
+
+# Thresholds in GB
+MAX_NPM_CACHE=2
+MAX_PNPM_STORE=2
+MAX_BREW_CACHE=1
+MAX_CLAUDE_PROJECTS=1
+# A base interpreter with more than this many packages is a junk drawer
+MAX_GLOBAL_PKGS=40
+
+findings=0
+say() { printf '  \033[33m!\033[0m %s\n' "$1"; findings=$((findings+1)); }
+gb()  { [ -e "$1" ] && du -sk "$1" 2>/dev/null | awk '{printf "%.1f", $1/1048576}' || echo 0; }
+over() { awk -v a="$1" -v b="$2" 'BEGIN{exit !(a>b)}'; }
+
+echo "── disk"
+for spec in "$HOME/.npm:$MAX_NPM_CACHE:npm cache:npm cache clean --force" \
+            "$HOME/Library/pnpm:$MAX_PNPM_STORE:pnpm store:pnpm store prune" \
+            "$HOME/Library/Caches/Homebrew:$MAX_BREW_CACHE:Homebrew cache:brew cleanup --prune=all" \
+            "$HOME/.claude/projects:$MAX_CLAUDE_PROJECTS:Claude session history:lower cleanupPeriodDays in settings.json"; do
+  IFS=: read -r path limit label fix <<< "$spec"
+  size=$(gb "$path")
+  over "$size" "$limit" && say "$label is ${size}G (limit ${limit}G) — $fix"
+done
+
+echo "── python"
+# The exact failure that started this: a .venv whose interpreter is not uv's.
+strays=0
+while IFS= read -r cfg; do
+  home=$(grep -E '^home' "$cfg" 2>/dev/null | head -1)
+  case "$home" in
+    *"/.local/share/uv/python"*|*homebrew*) ;;
+    *) say "${cfg%/pyvenv.cfg} runs on a non-uv interpreter (${home#home = })"; strays=$((strays+1)) ;;
+  esac
+done < <(find "$HOME/code" -maxdepth 5 -name pyvenv.cfg -not -path '*/node_modules/*' 2>/dev/null)
+
+# Version managers that were deliberately removed and should stay gone.
+for tool in pyenv poetry conda rbenv nvm; do
+  command -v "$tool" > /dev/null 2>&1 && say "$tool is back on PATH — it was removed on purpose"
+done
+
+# The junk-drawer pattern: a base interpreter accumulating pip installs.
+for py in /opt/homebrew/bin/python3.1[0-9]; do
+  [ -x "$py" ] || continue
+  n=$("$py" -m pip list 2>/dev/null | tail -n +3 | wc -l | tr -d ' ')
+  [ "${n:-0}" -gt "$MAX_GLOBAL_PKGS" ] && say "$py has $n packages — install into a project .venv or with uv tool"
+done
+
+echo "── secrets"
+while IFS= read -r repo; do
+  bad=$(git -C "$repo" ls-files 2>/dev/null | grep -E '(^|/)\.env(\.local)?$' | head -3)
+  [ -n "$bad" ] && say "$(basename "$repo") tracks $(echo "$bad" | tr '\n' ' ')in git"
+done < <(find "$HOME/code/projects" -maxdepth 2 -name .git -type d 2>/dev/null | xargs -n1 dirname 2>/dev/null)
+
+echo "── dotfiles"
+d="$HOME/.dotfiles"
+if [ -d "$d/.git" ]; then
+  n=$(git -C "$d" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+  [ "$n" -gt 0 ] && say "$n uncommitted change(s) in ~/.dotfiles"
+  git -C "$d" fetch -q origin 2>/dev/null
+  ahead=$(git -C "$d" rev-list --count '@{u}..HEAD' 2>/dev/null || echo 0)
+  [ "${ahead:-0}" -gt 0 ] && say "$ahead unpushed commit(s) in ~/.dotfiles"
+  # Brewfile drift: packages installed but never captured
+  if [ -f "$d/Brewfile" ] && command -v brew > /dev/null; then
+    missing=$(comm -23 <(brew leaves 2>/dev/null | sort) \
+                       <(grep '^brew "' "$d/Brewfile" | sed 's/brew "\([^"]*\)".*/\1/' | sed 's|.*/||' | sort) | wc -l | tr -d ' ')
+    [ "${missing:-0}" -gt 0 ] && say "$missing brew package(s) not in Brewfile — run: brew bundle dump --force"
+  fi
+fi
+
+echo "── stray tooling"
+# The skill installer that scaffolded 43 AI-CLI directories in $HOME.
+n=$(find "$HOME" -maxdepth 2 -type d -name skills -not -path "$HOME/.claude/*" \
+       -not -path "$HOME/.cursor/*" -not -path "$HOME/.codex/*" \
+       -not -path "$HOME/.copilot/*" 2>/dev/null | wc -l | tr -d ' ')
+[ "${n:-0}" -gt 0 ] && say "$n phantom AI-CLI skills director(ies) in \$HOME — a skill installer scaffolded them"
+
+echo
+if [ "$findings" -eq 0 ]; then
+  echo "  all clear"
+else
+  echo "  $findings finding(s)"
+fi
+exit "$findings"
