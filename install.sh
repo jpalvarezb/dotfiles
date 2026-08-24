@@ -31,6 +31,16 @@ for name in aliases gitconfig zprofile zshrc; do
   fi
 done
 
+# Install everything in the Brewfile: CLI tools, casks and taps.
+# Without this, install.sh would symlink configs pointing at tools that
+# are not on the machine. Regenerate with `brew bundle dump --force`.
+if command -v brew > /dev/null; then
+  echo "-----> Installing Homebrew packages from Brewfile (this takes a while)"
+  brew bundle --file="$PWD/Brewfile"
+else
+  echo "-----> Homebrew not found. Install it first: https://brew.sh"
+fi
+
 # zsh plugins come from Homebrew now (see zshrc), not from oh-my-zsh custom/.
 
 # Symlink VS Code settings and keybindings to the present `settings.json` and `keybindings.json` files

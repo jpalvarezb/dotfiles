@@ -95,10 +95,10 @@ command -v rg  > /dev/null && alias grep='rg'
 eval "$(starship init zsh)"
 
 # ─────────────────────────────────────────────────────────────
-#  Zsh plugins. Order matters: syntax-highlighting must be sourced
-#  near the end, and history-substring-search after it.
+#  Zsh plugins. Order matters: autosuggestions first, then
+#  syntax-highlighting, then history-substring-search last.
 # ─────────────────────────────────────────────────────────────
-for _p in zsh-syntax-highlighting zsh-history-substring-search; do
+for _p in zsh-autosuggestions zsh-syntax-highlighting zsh-history-substring-search; do
   [ -f "/opt/homebrew/share/$_p/$_p.zsh" ] && source "/opt/homebrew/share/$_p/$_p.zsh"
 done
 unset _p

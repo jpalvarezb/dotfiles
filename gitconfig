@@ -38,7 +38,6 @@
 
   # Serve local repo. http://coderwall.com/p/eybtga
   # Then other can access via `git clone git://#{YOUR_IP_ADDRESS}/
-  serve = !git daemon --reuseaddr --verbose  --base-path=. --export-all ./.git
 
   # Checkout to defaultBranch
   m = !git checkout $(git defaultBranch)
@@ -47,19 +46,17 @@
   unstage = reset HEAD --
 
 [help]
-  autocorrect = 1
+  autocorrect = prompt
 
 [push]
   default = simple
 
-[branch "master"]
-  mergeoptions = --no-edit
 
 [pull]
-  rebase = false
+  rebase = true
 
 [init]
-  defaultBranch = master
+  defaultBranch = main
 [user]
 	email = jpabalto11@gmail.com
 	name = JP Alvarez
@@ -76,3 +73,28 @@
 	line-numbers = true
 [merge]
 	conflictstyle = zdiff3
+
+[fetch]
+	prune = true
+	pruneTags = true
+[push]
+	autoSetupRemote = true
+[rerere]
+	enabled = true
+	autoupdate = true
+[diff]
+	algorithm = histogram
+	colorMoved = default
+[rebase]
+	autosquash = true
+	autostash = true
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	allowedSignersFile = ~/.ssh/allowed_signers
+[user]
+	signingkey = ~/.ssh/github.pub
+[commit]
+	gpgsign = true
+[tag]
+	gpgsign = true
