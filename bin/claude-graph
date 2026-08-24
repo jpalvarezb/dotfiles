@@ -1,39 +1,88 @@
 #!/usr/bin/env python3
-"""Generate an interactive knowledge graph of recent Claude Code activity.
+"""Agentarium — knowledge graph of Claude Code activity.
 
-Parses ~/.claude/projects/*/*.jsonl transcripts (last N days) and emits a
-self-contained HTML file (no external assets — safe for Notion's HTML upload).
-Nodes: projects, sessions, files. Files touched by 2+ sessions are highlighted:
-that IS the implicitly-shared context between agents.
+Parses ~/.claude/projects/*/*.jsonl transcripts (last N days) and emits:
+  ~/.claude/graph/claude-graph.html           standalone (browser / Notion HTML upload)
+  ~/.claude/graph/claude-graph.artifact.html  body-only variant for Claude Artifact publishing
 
-Usage: claude-graph [days] [output.html]
+Node taxonomy: project / session / file / topic. Topics come from word
+frequencies across the user's own messages; files touched by 2+ sessions are
+flagged — that is the implicitly-shared context between agents.
+
+Usage: claude-graph [days]
 """
 import json
+import re
 import sys
 import time
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
-DAYS = int(sys.argv[1]) if len(sys.argv) > 1 else 7
-OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else Path.home() / ".claude/graph/claude-graph.html"
+DAYS = int(sys.argv[1]) if len(sys.argv) > 1 else 30
+OUTDIR = Path.home() / ".claude/graph"
 ROOT = Path.home() / ".claude/projects"
 CUTOFF = time.time() - DAYS * 86400
-MAX_FILES_PER_PROJECT = 25
+MAX_FILES_PER_PROJECT = 20
+MAX_TOPIC_NODES = 14
+
+STOP = set("""
+de la que el en los las por con para una uno unos unas del al es son ser esta
+estan estas este estos esto eso esa esos aquello como mas pero sus les nos hay
+fue muy sin sobre tambien hasta desde entre cuando donde porque cual quien todo
+toda todos todas otro otra otros otras algo alguna algun nada cada mismo misma
+ahora antes despues aqui ahi alli entonces pues bien vale creo tiene tienen
+tengo tenemos hace hacen hacer hago haces puede pueden puedo podemos quiero
+quieres sea sean solo asi nunca siempre igual tipo cosa cosas vaina parte favor
+dime dame mira vamos deberia seria estaba estaban usted ustedes ellos ellas
+nosotros sigue sigo podria queria hacerlo hacerle verdad ahorita luego
+the and that this with from have has been were was are you your what when where
+which while will would could should there their them they then than into onto
+about after before because also just like some more most other others only over
+under again very cant cannot dont does doesnt didnt wasnt werent isnt arent
+these those ours mine yeah okay right really things thing something anything
+nothing want wants wanted need needs needed make makes made know knows think
+thinks lets look looks looking still gets sure much many even nearly honestly
+claude code users jpalvarez http https file files html json github mira
+""".split())
 
 def project_name(folder: str) -> str:
+    name = folder
     for prefix in ("-Users-jpalvarez-code-projects-", "-Users-jpalvarez-code-", "-Users-jpalvarez-"):
         if folder.startswith(prefix) and len(folder) > len(prefix):
-            return folder[len(prefix):]
-    return "home" if folder == "-Users-jpalvarez" else folder.lstrip("-")
+            name = folder[len(prefix):]
+            break
+    else:
+        return "home" if folder == "-Users-jpalvarez" else folder.lstrip("-")
+    return name.split("--claude-worktrees")[0]  # worktrees count as their parent project
 
-sessions = {}  # sid -> dict
+SKIP_PREFIXES = ("<local-command", "<command-name", "<bash-", "caveat:",
+                 "this session is being continued", "[request interrupted",
+                 "<task-notification", "<system-reminder")
+WORD_RE = re.compile(r"[a-záéíóúñü]{4,24}")
+PATHY_RE = re.compile(r"\S*[/\\]\S*|\[image[^\]]*\]|`[^`]*`", re.I)
+
+def norm(w: str) -> str:
+    return unicodedata.normalize("NFKD", w).encode("ascii", "ignore").decode()
+
+def user_text(msg) -> str:
+    c = msg.get("content")
+    if isinstance(c, str):
+        return c
+    if isinstance(c, list):
+        return " ".join(b.get("text", "") for b in c
+                        if isinstance(b, dict) and b.get("type") == "text")
+    return ""
+
+sessions = {}
 for jl in ROOT.glob("*/*.jsonl"):
     if jl.stat().st_mtime < CUTOFF:
         continue
     proj = project_name(jl.parent.name)
     sid = jl.stem
-    s = {"project": proj, "files": Counter(), "tools": Counter(),
-         "msgs": 0, "agents": 0, "first": None, "last": None}
+    s = {"project": proj, "files": Counter(), "tools": Counter(), "words": Counter(),
+         "agents": Counter(), "skills": Counter(), "mcp": Counter(), "models": set(),
+         "msgs": 0, "first": None, "last": None}
     try:
         with open(jl, errors="replace") as fh:
             for line in fh:
@@ -46,9 +95,19 @@ for jl in ROOT.glob("*/*.jsonl"):
                     s["first"] = min(s["first"] or ts, ts)
                     s["last"] = max(s["last"] or ts, ts)
                 msg = d.get("message") or {}
-                content = msg.get("content")
+                if msg.get("model") and msg["model"] != "<synthetic>":
+                    s["models"].add(msg["model"].replace("claude-", ""))
                 if d.get("type") == "user":
-                    s["msgs"] += 1
+                    t = user_text(msg).strip()
+                    if t and not t.lower().startswith(SKIP_PREFIXES):
+                        s["msgs"] += 1
+                        if len(t) > 1500:  # pasted logs/dumps, not typed thought
+                            continue
+                        for w in WORD_RE.findall(PATHY_RE.sub(" ", t.lower())):
+                            w = norm(w)
+                            if w not in STOP:
+                                s["words"][w] += 1
+                content = msg.get("content")
                 if not isinstance(content, list):
                     continue
                 for block in content:
@@ -56,139 +115,303 @@ for jl in ROOT.glob("*/*.jsonl"):
                         continue
                     name = block.get("name", "?")
                     s["tools"][name] += 1
-                    if name in ("Agent", "Task"):
-                        s["agents"] += 1
                     inp = block.get("input") or {}
+                    if name in ("Agent", "Task"):
+                        s["agents"][inp.get("subagent_type") or "general"] += 1
+                    elif name == "Skill":
+                        s["skills"][inp.get("skill") or "?"] += 1
+                    elif name.startswith("mcp__"):
+                        s["mcp"][name.split("__")[1]] += 1
                     fp = inp.get("file_path") or inp.get("notebook_path")
                     if fp:
                         s["files"][fp] += 1
     except OSError:
         continue
     if s["tools"] or s["msgs"]:
+        s["words"] = Counter({w: min(c, 25) for w, c in s["words"].items()})
         sessions[sid] = s
 
-# ── build graph ────────────────────────────────────────────────
-projects = sorted({s["project"] for s in sessions.values()})
-file_sessions = {}  # path -> set(sid)
+# ── aggregate ──────────────────────────────────────────────────
+proj_activity = Counter(s["project"] for s in sessions.values())
+projects = [p for p, _ in proj_activity.most_common()]
+file_sessions, word_total, word_sessions = {}, Counter(), {}
 for sid, s in sessions.items():
     for fp in s["files"]:
         file_sessions.setdefault(fp, set()).add(sid)
+    for w, c in s["words"].items():
+        word_total[w] += c
+        word_sessions.setdefault(w, set()).add(sid)
 
-# keep the most-touched files per project so the graph stays readable
 kept_files = set()
 for proj in projects:
-    proj_files = Counter()
-    for sid, s in sessions.items():
+    pf = Counter()
+    for s in sessions.values():
         if s["project"] == proj:
-            proj_files.update(s["files"])
-    kept_files.update(fp for fp, _ in proj_files.most_common(MAX_FILES_PER_PROJECT))
+            pf.update(s["files"])
+    kept_files.update(fp for fp, _ in pf.most_common(MAX_FILES_PER_PROJECT))
+
+topic_words = [w for w, _ in word_total.most_common(200)
+               if len(word_sessions[w]) >= 2][:MAX_TOPIC_NODES]
 
 nodes, edges, idx = [], [], {}
-def add(node):
-    idx[node["id"]] = len(nodes)
-    nodes.append(node)
+def add(n):
+    idx[n["id"]] = len(nodes)
+    nodes.append(n)
 
+now = time.time()
 for i, proj in enumerate(projects):
-    n_sess = sum(1 for s in sessions.values() if s["project"] == proj)
-    add({"id": f"p:{proj}", "kind": "project", "label": proj, "ci": i, "n": n_sess})
+    ss = [s for s in sessions.values() if s["project"] == proj]
+    pw = Counter()
+    for s in ss:
+        pw.update(s["words"])
+    add({"id": f"p:{proj}", "kind": "project", "label": proj, "ci": i, "n": len(ss),
+         "detail": {"sesiones": len(ss),
+                    "tool_calls": sum(sum(s["tools"].values()) for s in ss),
+                    "top_palabras": pw.most_common(8)}})
 for sid, s in sessions.items():
     date = (s["first"] or "")[:16].replace("T", " ")
-    top = ", ".join(f"{t}×{c}" for t, c in s["tools"].most_common(4))
+    try:
+        age = now - time.mktime(time.strptime((s["first"] or "")[:10], "%Y-%m-%d"))
+    except Exception:
+        age = 0
     add({"id": f"s:{sid}", "kind": "session", "label": date or sid[:8],
          "ci": projects.index(s["project"]), "n": sum(s["tools"].values()),
-         "tip": f"{s['project']} · {date} · {s['msgs']} msgs · {s['agents']} agentes · {top}"})
-    edges.append([f"p:{s['project']}", f"s:{sid}", 1])
+         "rec": max(0.0, 1 - age / (DAYS * 86400)),
+         "tip": f"{s['project']} · {date} · {s['msgs']} msgs · {sum(s['tools'].values())} tool calls",
+         "detail": {"proyecto": s["project"], "fecha": date, "mensajes": s["msgs"],
+                    "modelos": sorted(s["models"]),
+                    "herramientas": s["tools"].most_common(5),
+                    "agentes": s["agents"].most_common(5),
+                    "skills": s["skills"].most_common(4),
+                    "mcp": s["mcp"].most_common(4),
+                    "palabras": s["words"].most_common(8),
+                    "archivos": [Path(f).name for f, _ in s["files"].most_common(10)]}})
+    edges.append([f"p:{s['project']}", f"s:{sid}", 1, 0])
 for fp in kept_files:
     sids = file_sessions[fp]
-    shared = len(sids) > 1
     add({"id": f"f:{fp}", "kind": "file", "label": Path(fp).name,
-         "shared": shared, "n": len(sids), "tip": fp})
+         "shared": len(sids) > 1, "n": len(sids), "tip": fp,
+         "detail": {"ruta": fp, "sesiones_que_lo_tocaron": len(sids)}})
     for sid in sids:
         if f"s:{sid}" in idx:
-            edges.append([f"s:{sid}", f"f:{fp}", sessions[sid]["files"][fp]])
+            edges.append([f"s:{sid}", f"f:{fp}", sessions[sid]["files"][fp], 1])
+for w in topic_words:
+    add({"id": f"t:{w}", "kind": "topic", "label": w, "n": word_total[w],
+         "tip": f"«{w}» · {word_total[w]} veces en {len(word_sessions[w])} sesiones",
+         "detail": {"veces": word_total[w], "sesiones": len(word_sessions[w])}})
+    for sid in word_sessions[w]:
+        if f"s:{sid}" in idx:
+            edges.append([f"s:{sid}", f"t:{w}", sessions[sid]["words"][w], 2])
 
-edges = [[idx[a], idx[b], w] for a, b, w in edges if a in idx and b in idx]
-shared_count = sum(1 for n in nodes if n.get("shared"))
-data = json.dumps({"nodes": nodes, "edges": edges, "days": DAYS,
-                   "generated": time.strftime("%Y-%m-%d %H:%M")}, ensure_ascii=False)
+edges = [[idx[a], idx[b], w, t] for a, b, w, t in edges if a in idx and b in idx]
+data = json.dumps(
+    {"nodes": nodes, "edges": edges, "days": DAYS,
+     "generated": time.strftime("%Y-%m-%d %H:%M")},
+    ensure_ascii=False).replace("</", "<\\/")
 
-HTML = r"""<!doctype html><html><head><meta charset="utf-8">
-<title>Claude Agents Graph</title>
+HEAD = """<title>Agentarium</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=swap">
 <style>
-  html,body{margin:0;height:100%;background:#131313;color:#d6dbe5;
-    font:13px/1.4 "JetBrainsMono NFM","JetBrains Mono",monospace;overflow:hidden}
-  #hud{position:fixed;top:12px;left:16px;pointer-events:none}
-  #hud h1{margin:0;font-size:15px;color:#ecba0f}
-  #hud .sub{color:#666c76}
-  #legend{position:fixed;bottom:12px;left:16px;color:#666c76;pointer-events:none}
-  #legend b{font-weight:normal}
-  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin:0 4px 0 10px}
-  #tip{position:fixed;display:none;background:#1f1f1f;border:1px solid #2a84d2;
-    padding:6px 9px;border-radius:6px;max-width:420px;pointer-events:none;z-index:9}
-  canvas{display:block}
-</style></head><body>
-<div id="hud"><h1>⏺ Claude Agents Graph</h1><div class="sub" id="stats"></div></div>
-<div id="legend"><b><span class="dot" style="background:#2a84d2"></span>proyecto
-<span class="dot" style="background:#ecba0f"></span>sesión
-<span class="dot" style="background:#2dc55e"></span>archivo
-<span class="dot" style="background:#f81118"></span>archivo compartido entre sesiones</b>
-&nbsp;·&nbsp; arrastra nodos · hover para detalle</div>
+  :root{--bg:#07090d;--panel:#0d1117;--edge:#1b2330;--ink:#c9d4e3;--muted:#5f6c7d;
+    --faint:#3e4a59;--accent:#d9a441;--hot:#f8544d}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:12.5px/1.45 "JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  #hud{position:fixed;top:14px;left:18px;pointer-events:none;z-index:3}
+  #hud .brand{font-weight:800;font-size:14px;letter-spacing:.22em;color:var(--ink)}
+  #hud .brand b{color:var(--accent);font-weight:800}
+  #hud .sub{color:var(--muted);margin-top:4px;font-size:11.5px}
+  #legend{position:fixed;bottom:12px;left:18px;color:var(--faint);font-size:11px;
+    pointer-events:none;z-index:3;max-width:calc(100vw - 340px)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin:0 4px 0 12px;vertical-align:-1px}
+  #dock{position:fixed;top:0;right:0;bottom:0;width:302px;background:var(--panel);
+    border-left:1px solid var(--edge);padding:14px 16px;overflow-y:auto;z-index:4}
+  #dock h2{font-size:11px;font-weight:600;letter-spacing:.18em;color:var(--muted);
+    margin:14px 0 8px;text-transform:uppercase}
+  #q{width:100%;background:var(--bg);border:1px solid var(--edge);color:var(--ink);
+    border-radius:6px;padding:7px 9px;font:inherit;outline:none}
+  #q:focus{border-color:var(--accent)}
+  .wrow{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;
+    padding:4px 4px 5px;border-radius:4px;cursor:pointer}
+  .wrow:hover{background:var(--bg)}
+  .wrow.on{background:var(--bg);outline:1px solid var(--accent)}
+  .wrow .w{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wrow .n{color:var(--muted);font-variant-numeric:tabular-nums;font-size:11px}
+  .wbar{height:3px;border-radius:2px;background:var(--accent);opacity:.75;
+    grid-column:1/-1;justify-self:start}
+  #dockbody .kv{margin:0 0 10px}
+  #dockbody .k{color:var(--muted);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase}
+  #dockbody .v{margin-top:2px;word-break:break-word}
+  #dockbody .v .cnt{color:var(--muted);font-variant-numeric:tabular-nums}
+  #back{color:var(--accent);cursor:pointer;font-size:11.5px;margin-bottom:6px;display:inline-block}
+  #tip{position:fixed;display:none;background:var(--panel);border:1px solid var(--accent);
+    color:var(--ink);padding:6px 9px;border-radius:6px;max-width:380px;font-size:11.5px;
+    pointer-events:none;z-index:9}
+  canvas{display:block;cursor:grab;background:radial-gradient(ellipse at 42% 38%,#0c1016 0%,#07090d 55%,#04060a 100%)}
+  ::-webkit-scrollbar{width:8px}::-webkit-scrollbar-thumb{background:var(--edge);border-radius:4px}
+</style>"""
+
+BODY = """<div id="hud"><div class="brand">AGENT<b>ARIUM</b></div><div class="sub" id="stats"></div></div>
+<div id="legend"></div>
+<div id="dock">
+  <input id="q" placeholder="buscar nodo o palabra…" spellcheck="false">
+  <div id="dockbody"></div>
+</div>
 <div id="tip"></div><canvas id="c"></canvas>
 <script>
-const DATA = __DATA__;
-const PAL=["#2a84d2","#2dc55e","#ecba0f","#5350b9","#1081d6","#de352e","#1dd361","#f3bd09","#4e5ab7","#0f7ddb"];
+const DATA=__DATA__;
+const PAL=["#cf6a2d","#3b82d4","#2fae5f","#d55f9e","#ab851c","#189bc2","#7d6fe0"];
+const OTHER="#5f6c7d",HOT="#f8544d",FILEC="#4a5666",INK="#c9d4e3",MUTED="#5f6c7d";
 const cv=document.getElementById("c"),cx=cv.getContext("2d"),tip=document.getElementById("tip");
-let W,H,DPR=devicePixelRatio||1;
-function resize(){W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;
-  cv.style.width=W+"px";cv.style.height=H+"px";cx.setTransform(DPR,0,0,DPR,0,0)}
+const dock=document.getElementById("dockbody"),q=document.getElementById("q");
+const DOCKW=302;let W,H,DPR=devicePixelRatio||1;
+function resize(){W=Math.max(320,innerWidth-DOCKW);H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;
+  cv.style.width=W+"px";cv.style.height=H+"px"}
 resize();addEventListener("resize",resize);
 const N=DATA.nodes,E=DATA.edges;
-N.forEach((n,i)=>{const a=i/N.length*Math.PI*2,r=Math.min(W,H)*.33;
-  n.x=W/2+Math.cos(a)*r*(n.kind==="project"?.4:1);
-  n.y=H/2+Math.sin(a)*r*(n.kind==="project"?.4:1);n.vx=0;n.vy=0;
-  n.r=n.kind==="project"?14+Math.min(10,n.n):n.kind==="session"?5+Math.min(6,Math.sqrt(n.n)):3+Math.min(4,n.n);
-  n.color=n.kind==="file"?(n.shared?"#f81118":"#2dc55e"):PAL[n.ci%PAL.length]});
-const stats=document.getElementById("stats");
-stats.textContent=`últimos ${DATA.days} días · ${N.filter(n=>n.kind==="project").length} proyectos · `+
+const pcolor=ci=>ci<PAL.length?PAL[ci]:OTHER;
+N.forEach((n,i)=>{const a=i/N.length*Math.PI*2,rr=Math.min(W,H)*(n.kind==="project"?.14:n.kind==="topic"?.46:.32);
+  n.x=W/2+Math.cos(a)*rr;n.y=H/2+Math.sin(a)*rr;n.vx=0;n.vy=0;
+  n.r=n.kind==="project"?12+Math.min(8,n.n):n.kind==="session"?4.5+Math.min(5,Math.sqrt(n.n)):
+     n.kind==="file"?(n.shared?4:2.6):0;
+  if(n.kind==="topic"){n.fs=15;n.r=n.fs*.62}
+  n.color=n.kind==="file"?(n.shared?HOT:FILEC):n.kind==="topic"?INK:pcolor(n.ci)});
+document.getElementById("stats").textContent=
+ `últimos ${DATA.days} días · ${N.filter(n=>n.kind==="project").length} proyectos · `+
  `${N.filter(n=>n.kind==="session").length} sesiones · ${N.filter(n=>n.kind==="file").length} archivos `+
- `(${N.filter(n=>n.shared).length} compartidos) · generado ${DATA.generated}`;
-let drag=null,hover=null,mx=0,my=0;
-cv.onmousedown=e=>{if(hover){drag=hover;drag.fx=e.clientX;drag.fy=e.clientY}};
-addEventListener("mouseup",()=>{if(drag){drag.fx=drag.fy=null;drag=null}});
+ `(${N.filter(n=>n.shared).length} compartidos) · ${DATA.generated}`;
+document.getElementById("legend").innerHTML=
+ `<span class="dot" style="background:#3b82d4"></span>proyecto`+
+ `<span class="dot" style="background:#8a93a3"></span>sesión (color = su proyecto)`+
+ `<span class="dot" style="background:${FILEC}"></span>archivo`+
+ `<span class="dot" style="background:${HOT}"></span>compartido entre sesiones`+
+ ` · <b style="font-weight:800;color:#c9d4e3">palabra</b> = tema · scroll = zoom · arrastra fondo o nodos`;
+// ── dock ──
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let selWord=null,sel=null;
+function renderIntel(){
+  const ps=N.filter(n=>n.kind==="project").sort((a,b)=>b.n-a.n);
+  dock.innerHTML=`<h2>operaciones</h2>`+ps.map(pr=>
+   `<div class="wrow" data-p="${esc(pr.label)}">
+      <span class="w"><span class="dot" style="background:${pr.color};margin:0 7px 0 0"></span>${esc(pr.label)}</span>
+      <span class="n">${pr.n} ses.</span></div>`).join("")+
+   `<h2>protocolo</h2><div style="color:var(--muted);font-size:11.5px;line-height:1.8">
+    click en un nodo → su expediente<br>scroll = zoom · arrastra fondo o nodos<br>
+    <b style="color:var(--ink);font-weight:600">palabras flotantes</b> = temas que cruzan sesiones</div>`;
+  dock.querySelectorAll(".wrow").forEach(el=>{el.onclick=()=>{
+    q.value=q.value===el.dataset.p?"":el.dataset.p;q.dispatchEvent(new Event("input"))}});
+}
+function kv(k,v){return (v===0||v===""||v==null||(Array.isArray(v)&&!v.length))?"":
+  `<div class="kv"><div class="k">${k}</div><div class="v">${v}</div></div>`}
+function pairs(a){return (a||[]).map(p=>`${esc(p[0])} <span class="cnt">${p[1]}×</span>`).join(" · ")}
+function renderDetail(n){
+  const d=n.detail||{};let h=`<span id="back">← resumen</span><h2>${esc(n.kind)}</h2>
+    <div class="kv"><div class="k">nombre</div><div class="v" style="color:${n.color}">${esc(n.label)}</div></div>`;
+  if(n.kind==="session"){h+=kv("proyecto",esc(d.proyecto||""))+kv("fecha",esc(d.fecha||""))
+    +kv("mensajes tuyos",d.mensajes)+kv("modelos",(d.modelos||[]).map(esc).join(" · "))
+    +kv("herramientas",pairs(d.herramientas))+kv("agentes spawneados",pairs(d.agentes))
+    +kv("skills",pairs(d.skills))+kv("servidores mcp",pairs(d.mcp))
+    +kv("palabras clave",pairs(d.palabras))
+    +kv("archivos",(d.archivos||[]).map(esc).join("<br>"))}
+  else if(n.kind==="project"){h+=kv("sesiones",d.sesiones)+kv("tool calls",d.tool_calls)
+    +kv("palabras del proyecto",pairs(d.top_palabras))}
+  else if(n.kind==="file"){h+=kv("ruta",esc(d.ruta||""))+kv("sesiones que lo tocaron",d.sesiones_que_lo_tocaron)}
+  else{h+=kv("apariciones",d.veces)+kv("en sesiones",d.sesiones)}
+  dock.innerHTML=h;
+  document.getElementById("back").onclick=()=>{sel=null;renderIntel()};
+}
+renderIntel();
+// ── camera ──
+let k=1,tx=0,ty=0;
+const wx=x=>(x-tx)/k, wy=y=>(y-ty)/k;
+cv.addEventListener("wheel",e=>{e.preventDefault();
+  const f=Math.exp(-e.deltaY*.0012),nk=Math.min(3,Math.max(.3,k*f));
+  tx=e.clientX-(e.clientX-tx)*nk/k;ty=e.clientY-(e.clientY-ty)*nk/k;k=nk},{passive:false});
+// ── interaction ──
+let drag=null,pan=null,hover=null,mx=0,my=0;
+function hit(px,py){const x=wx(px),y=wy(py);
+  for(let i=N.length-1;i>=0;i--){const n=N[i];
+    if(n.kind==="topic"){if(n.tw!=null&&Math.abs(x-n.x)<n.tw/2+4&&Math.abs(y-n.y)<n.fs*.7)return n}
+    else{const dx=n.x-x,dy=n.y-y;if(dx*dx+dy*dy<(n.r+4)*(n.r+4))return n}}
+  return null}
+cv.onmousedown=e=>{const h=hit(e.clientX,e.clientY);
+  if(h){drag=h;drag.fx=wx(e.clientX);drag.fy=wy(e.clientY);drag.moved=false}
+  else{pan={x:e.clientX,y:e.clientY,tx:tx,ty:ty}}cv.style.cursor="grabbing"};
+addEventListener("mouseup",e=>{
+  if(drag&&!drag.moved){sel=drag;selWord=null;renderDetail(drag)}
+  if(drag){drag.fx=drag.fy=null}drag=null;pan=null;cv.style.cursor="grab"});
 addEventListener("mousemove",e=>{mx=e.clientX;my=e.clientY;
-  if(drag){drag.fx=mx;drag.fy=my}
-  hover=null;
-  for(const n of N){const dx=n.x-mx,dy=n.y-my;if(dx*dx+dy*dy<(n.r+4)**2){hover=n;break}}
+  if(drag){drag.fx=wx(mx);drag.fy=wy(my);drag.moved=true}
+  else if(pan){tx=pan.tx+(mx-pan.x);ty=pan.ty+(my-pan.y)}
+  hover=mx<W?hit(mx,my):null;
   if(hover&&(hover.tip||hover.label)){tip.style.display="block";
-    tip.style.left=Math.min(mx+14,W-440)+"px";tip.style.top=(my+14)+"px";
+    tip.style.left=Math.min(mx+14,W-320)+"px";tip.style.top=(my+16)+"px";
     tip.textContent=hover.tip||hover.label}else tip.style.display="none"});
+// ── physics ──
+const LDIST=[90,52,210];
 function step(){
   for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){
     const a=N[i],b=N[j];let dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy||1;
-    if(d2<32000){const f=900/d2,d=Math.sqrt(d2);dx/=d;dy/=d;
-      a.vx-=dx*f;a.vy-=dy*f;b.vx+=dx*f;b.vy+=dy*f}}
-  for(const[i,j]of E){const a=N[i],b=N[j];
+    const tt=a.kind==="topic"&&b.kind==="topic";
+    if(d2<(tt?120000:36000)){const rep=(tt?9000:(a.kind==="topic"||b.kind==="topic"?1600:900))/d2,
+      d=Math.sqrt(d2);dx/=d;dy/=d;
+      a.vx-=dx*rep;a.vy-=dy*rep;b.vx+=dx*rep;b.vy+=dy*rep}}
+  for(const ed of E){const a=N[ed[0]],b=N[ed[1]];
     const dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-    const f=(d-70)*.02/d;a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f}
-  for(const n of N){n.vx+=(W/2-n.x)*.0012;n.vy+=(H/2-n.y)*.0012;
-    n.vx=Math.max(-40,Math.min(40,n.vx*.85));n.vy=Math.max(-40,Math.min(40,n.vy*.85));n.x+=n.vx;n.y+=n.vy;
-    if(n.fx!=null){n.x=n.fx;n.y=n.fy}}
+    const f=(d-LDIST[ed[3]])*.018/d;
+    a.vx+=dx*f;a.vy+=dy*f;b.vx-=dx*f;b.vy-=dy*f}
+  for(const n of N){const g=n.kind==="topic"?.0004:.0011;n.vx+=(W/2-n.x)*g;n.vy+=(H/2-n.y)*g;
+    n.vx=Math.max(-40,Math.min(40,n.vx*.85));n.vy=Math.max(-40,Math.min(40,n.vy*.85));
+    n.x+=n.vx;n.y+=n.vy;if(n.fx!=null){n.x=n.fx;n.y=n.fy}}
 }
-function draw(){cx.clearRect(0,0,W,H);
-  cx.strokeStyle="rgba(214,219,229,.10)";
-  for(const[i,j,w]of E){cx.lineWidth=Math.min(2.5,.5+w*.1);cx.beginPath();
-    cx.moveTo(N[i].x,N[i].y);cx.lineTo(N[j].x,N[j].y);cx.stroke()}
-  for(const n of N){cx.beginPath();cx.arc(n.x,n.y,n.r,0,7);
-    cx.fillStyle=n.color;cx.shadowColor=n.color;cx.shadowBlur=n===hover?18:(n.shared?12:6);
-    cx.fill();cx.shadowBlur=0;
-    if(n.kind==="project"){cx.fillStyle="#d6dbe5";cx.font="bold 12px monospace";
-      cx.fillText(n.label,n.x+n.r+5,n.y+4)}}
+// ── draw ──
+const EDGEA=[.14,.11,.06];
+function isMatch(n){const s=q.value.trim().toLowerCase();
+  if(selWord){
+    if(n.kind==="topic")return n.label===selWord;
+    if(n.kind==="session")return E.some(ed=>ed[3]===2&&N[ed[1]].label===selWord&&N[ed[0]]===n);
+    return false}
+  if(!s)return true;
+  return (n.label+" "+(n.tip||"")).toLowerCase().includes(s)}
+function draw(){cx.setTransform(DPR,0,0,DPR,0,0);cx.clearRect(0,0,W,H);
+  cx.setTransform(DPR*k,0,0,DPR*k,DPR*tx,DPR*ty);
+  const filtering=!!(q.value.trim()||selWord);
+  for(const ed of E){const a=N[ed[0]],b=N[ed[1]];
+    const on=!filtering||(isMatch(a)&&isMatch(b));
+    cx.strokeStyle=`rgba(214,219,229,${on?EDGEA[ed[3]]:.02})`;
+    cx.lineWidth=Math.min(2.2,(.4+ed[2]*.08))/k;
+    cx.beginPath();cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);cx.stroke()}
+  for(const n of N){const on=!filtering||isMatch(n);
+    cx.globalAlpha=on?(n.kind==="session"?.62+.38*(n.rec||0):1):.12;
+    if(n.kind==="topic"){
+      cx.font=`800 ${n.fs}px "JetBrains Mono",monospace`;
+      if(n.tw==null)n.tw=cx.measureText(n.label).width;
+      cx.shadowColor="#000";cx.shadowBlur=8;
+      cx.fillStyle=(n===hover||n===sel)?"#f2e3bd":INK;
+      cx.textAlign="center";cx.textBaseline="middle";
+      cx.fillText(n.label,n.x,n.y);cx.shadowBlur=0;
+    }else{
+      cx.beginPath();cx.arc(n.x,n.y,n.r,0,7);cx.fillStyle=n.color;
+      cx.shadowColor=n.color;cx.shadowBlur=(n===hover||n===sel)?16:(n.shared?10:4);
+      cx.fill();cx.shadowBlur=0;
+      if(n===sel){cx.strokeStyle="#d9a441";cx.lineWidth=1.2/k;cx.stroke()}
+      if(n.kind==="project"){cx.textAlign="left";cx.textBaseline="middle";
+        cx.font=`600 12px "JetBrains Mono",monospace`;
+        cx.fillStyle=INK;cx.fillText(n.label,n.x+n.r+6,n.y)}}
+    cx.globalAlpha=1}
 }
+q.addEventListener("input",()=>{selWord=null;if(!sel)renderIntel()});
 (function loop(){step();step();draw();requestAnimationFrame(loop)})();
-</script></body></html>"""
+</script>"""
 
-OUT.parent.mkdir(parents=True, exist_ok=True)
-OUT.write_text(HTML.replace("__DATA__", data))
-print(f"{OUT}  ({OUT.stat().st_size//1024} KB)")
-print(f"proyectos={len(projects)} sesiones={len(sessions)} "
-      f"archivos={len(kept_files)} compartidos={shared_count} edges={len(edges)}")
+OUTDIR.mkdir(parents=True, exist_ok=True)
+body = BODY.replace("__DATA__", data)
+(OUTDIR / "claude-graph.html").write_text(
+    "<!doctype html><html><head>" + HEAD + "</head><body>" + body + "</body></html>")
+(OUTDIR / "claude-graph.artifact.html").write_text(HEAD + body)
+size = (OUTDIR / "claude-graph.html").stat().st_size // 1024
+print(f"{OUTDIR}/claude-graph.html ({size} KB) + variante .artifact.html")
+print(f"proyectos={len(projects)} sesiones={len(sessions)} archivos={len(kept_files)} "
+      f"temas={len(topic_words)} edges={len(edges)}")
