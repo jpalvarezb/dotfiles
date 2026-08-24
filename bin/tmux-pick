@@ -1,0 +1,5 @@
+#!/bin/sh
+# fzf picker for tmux windows across all sessions (bound to prefix+f).
+target=$(tmux list-windows -aF '#{session_name}:#{window_index} · #{window_name} · #{pane_current_command}' \
+  | fzf --reverse --prompt=' ') || exit 0
+tmux switch-client -t "${target%% *}"

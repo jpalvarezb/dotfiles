@@ -1,0 +1,4 @@
+#!/bin/sh
+# Git segment for the tmux status bar; prints nothing outside a repo.
+branch=$(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
+printf '#[fg=#2dc55e]#[fg=#131313,bg=#2dc55e]  %s #[fg=#2dc55e,bg=default] ' "$branch"
