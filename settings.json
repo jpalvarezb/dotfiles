@@ -137,5 +137,13 @@
       "editor.defaultFormatter": "redhat.vscode-yaml"
     },
     "chat.viewSessions.orientation": "stacked",
-    "workbench.colorTheme": "Dark Modern"
+    "workbench.colorTheme": "Dark Modern",
+    "yaml.disableSchemaDetection": [
+      "**/.github/workflows/*.yml",
+      "**/.github/workflows/*.yaml",
+      "**/.gitea/workflows/*.yml",
+      "**/.gitea/workflows/*.yaml",
+      "**/.forgejo/workflows/*.yml",
+      "**/.forgejo/workflows/*.yaml"
+    ]
 }
