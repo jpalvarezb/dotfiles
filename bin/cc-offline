@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# cc-offline — run Claude Code against a local Ollama model (no network needed).
+#
+# Why this exists: Claude Code speaks the Anthropic Messages API, and Ollama
+# serves that API natively at /v1/messages. `ollama launch claude` wires the
+# ANTHROPIC_* env vars for us. This script just makes sure the server is up and
+# the model is warm before handing over, so the first turn is not a 30s stall.
+#
+# Usage:
+#   cc-offline                 launch Claude Code on the default local model
+#   cc-offline -m <model>      use a different local model
+#   cc-offline --check         diagnose only (server, model, memory placement)
+#   cc-offline -- <args...>    pass extra args through to claude
+
+set -euo pipefail
+
+MODEL="${CC_OFFLINE_MODEL:-qwen3.5:9b-64k}"
+HOST="http://127.0.0.1:11434"
+CHECK_ONLY=0
+CLAUDE_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -m|--model) MODEL="$2"; shift 2 ;;
+    --check)    CHECK_ONLY=1; shift ;;
+    --)         shift; CLAUDE_ARGS=("$@"); break ;;
+    *)          CLAUDE_ARGS+=("$1"); shift ;;
+  esac
+done
+
+say()  { printf '\033[2m%s\033[0m\n' "$*" >&2; }
+die()  { printf '\033[31m%s\033[0m\n' "$*" >&2; exit 1; }
+
+command -v ollama >/dev/null || die "ollama no está instalado."
+
+# 1. Server up?
+if ! curl -sf -m 2 "$HOST/api/version" >/dev/null 2>&1; then
+  say "Ollama no responde, abriendo la app..."
+  open -a Ollama 2>/dev/null || die "No pude abrir Ollama.app"
+  for _ in $(seq 1 30); do
+    sleep 1
+    curl -sf -m 2 "$HOST/api/version" >/dev/null 2>&1 && break
+  done
+  curl -sf -m 2 "$HOST/api/version" >/dev/null 2>&1 || die "Ollama no arrancó a tiempo."
+fi
+
+# 2. Model present locally? (a :cloud model is useless offline — refuse it)
+case "$MODEL" in
+  *:cloud|*-cloud) die "'$MODEL' es un modelo cloud: no sirve sin red." ;;
+esac
+ollama list 2>/dev/null | awk 'NR>1{print $1}' | grep -qx "$MODEL" \
+  || die "'$MODEL' no está descargado. Mira 'ollama list'."
+
+# 3. Warm it, so the session does not eat the cold load on turn one.
+say "Cargando $MODEL..."
+curl -sf -m 300 "$HOST/api/generate" \
+  -d "{\"model\":\"$MODEL\",\"prompt\":\"ok\",\"stream\":false,\"options\":{\"num_predict\":1}}" \
+  >/dev/null || die "No pude cargar $MODEL."
+
+# 4. Report where it landed. Anything but 100% GPU means it spilled to CPU and
+#    will be painfully slow — worth seeing before you start working.
+PLACEMENT="$(ollama ps 2>/dev/null | awk -v m="$MODEL" '$1==m{print $3$4", "$5" "$6", ctx "$7}')"
+say "  $PLACEMENT"
+case "$PLACEMENT" in
+  *CPU*) printf '\033[33m  ojo: parte en CPU, va a ir lento. Usa un ctx menor.\033[0m\n' >&2 ;;
+esac
+
+if [[ $CHECK_ONLY -eq 1 ]]; then
+  say "--check: todo listo. Lanza con 'cc-offline'."
+  exit 0
+fi
+
+# Claude Code does not know this model, so it assumes a 200k window and would let
+# the session grow far past what the model can actually hold. Tell it the truth,
+# read straight from the model itself.
+NUM_CTX="$(ollama show --parameters "$MODEL" 2>/dev/null | awk '$1=="num_ctx"{print $2}')"
+if [[ -n "$NUM_CTX" ]]; then
+  export CLAUDE_CODE_MAX_CONTEXT_TOKENS="$NUM_CTX"
+  say "ventana real: $NUM_CTX tokens (auto-compact ajustado)"
+else
+  say "aviso: no pude leer num_ctx; Claude Code asumirá 200k"
+fi
+
+say "Lanzando Claude Code contra $MODEL (Ctrl-C para salir)"
+exec ollama launch claude --model "$MODEL" ${CLAUDE_ARGS[0]+-- "${CLAUDE_ARGS[@]}"}
