@@ -12,13 +12,16 @@ font-thicken = true
 # See all: `open /Applications/Ghostty.app/Contents/Resources/ghostty/themes`
 theme = "Brogrammer"
 
-# ── App icon (monochrome / black & white) ─────────────────────
-# custom-style lets us recolor the ghost + screen; chrome frame = neutral silver.
-# White ghost on a black screen = sleek B&W. Flip the two colors for the inverse.
-macos-icon = custom-style
-macos-icon-frame = plastic
-macos-icon-ghost-color = white
-macos-icon-screen-color = black
+# ── App icon ──────────────────────────────────────────────────
+# Trying a custom .icns. To revert, comment these two and uncomment the B&W block.
+macos-icon = custom
+macos-custom-icon = /Users/jpalvarez/.dotfiles/ghostty/Terminal.icns
+
+# Previous: monochrome / black & white via custom-style.
+# macos-icon = custom-style
+# macos-icon-frame = plastic
+# macos-icon-ghost-color = white
+# macos-icon-screen-color = black
 
 # ── Window ────────────────────────────────────────────────────
 # See-through, but blurred so text stays readable ("frosted glass").
